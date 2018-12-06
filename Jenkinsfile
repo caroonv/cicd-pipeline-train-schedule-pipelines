@@ -1,23 +1,41 @@
 pipeline {
     agent any
-
     stages {
         stage('Build') {
             steps {
-                echo 'Building..'
+                echo 'Running build automation'
                 sh './gradlew build --no-daemon'
-                archiveArtifacts artifacts:  'dist/trainSchedule.zip'
+                archiveArtifacts artifacts: 'dist/trainSchedule.zip'
             }
         }
-        stage('Test') {
+
+        stage('Build Docker Image') {
+            when {
+                branch 'master'
+            }
             steps {
-                echo 'Testing..'
+                script {
+                    app = docker.build('caroon/train-schedule')
+                    app.inside {
+                        sh 'echo $(curl localhost:8080)'
+                    }
+                }
             }
         }
-        stage('Deploy') {
+
+        stage('Push Docker Image') {
+            when {
+                branch 'master'
+            }
             steps {
-                echo 'Deploying....'
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', 'docker_hub_login') {
+                        app.push("${env.BUILD_NUMBER}")
+                        app.push("latest")
+                    }
+                }
             }
         }
+
     }
 }
